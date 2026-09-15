@@ -13,14 +13,8 @@ if [[ "$INSTALL_NVM_NODE" == true ]]; then
         NVM_INSTALL_URL="https://raw.githubusercontent.com/nvm-sh/nvm/${NVM_VERSION}/install.sh"
         NVM_INSTALL_TMP="$(mktemp)"
 
-        # Force IPv4 because IPv6 connectivity may be unavailable/broken.
-        #
-        # Network behavior:
-        #   - Retry temporary failures up to 5 times.
-        #   - Wait 3 seconds between retries.
-        #   - Retry connection/network errors too.
-        #   - Give connection establishment 15 seconds.
-        #   - Limit each transfer attempt to 120 seconds.
+        # This VM currently has working IPv4 but no usable IPv6 route.
+        # Force IPv4 and retry temporary network failures.
         if ! curl -4 -fsSL \
             --retry 5 \
             --retry-delay 3 \
@@ -49,8 +43,8 @@ if [[ "$INSTALL_NVM_NODE" == true ]]; then
         source "$NVM_DIR/nvm.sh"
 
         log "Installing Node.js LTS"
-        nvm install --lts
 
+        nvm install --lts
         nvm alias default 'lts/*'
         nvm use default
     else
@@ -68,15 +62,25 @@ if [[ "$INSTALL_PYTHON" == true ]]; then
 
     case "$FAMILY" in
         debian)
-            install_many python3 python3-pip python3-venv pipx
+            install_many \
+                python3 \
+                python3-pip \
+                python3-venv \
+                pipx
             ;;
 
         fedora)
-            install_many python3 python3-pip pipx
+            install_many \
+                python3 \
+                python3-pip \
+                pipx
             ;;
 
         arch)
-            install_many python python-pip python-pipx
+            install_many \
+                python \
+                python-pip \
+                python-pipx
             ;;
     esac
 fi
@@ -91,6 +95,7 @@ if [[ "$INSTALL_DOCKER" == true ]]; then
 
     if ! command -v docker >/dev/null 2>&1; then
         case "$FAMILY" in
+
             debian)
                 docker_os="debian"
                 docker_suite="${VERSION_CODENAME:-}"
@@ -123,6 +128,7 @@ Signed-By: /etc/apt/keyrings/docker.asc
 EOF_DOCKER
 
                 sudo apt-get update
+
                 sudo apt-get install -y \
                     docker-ce \
                     docker-ce-cli \
@@ -147,7 +153,10 @@ EOF_DOCKER
                 ;;
 
             arch)
-                install_many docker docker-buildx docker-compose
+                install_many \
+                    docker \
+                    docker-buildx \
+                    docker-compose
                 ;;
         esac
     else
@@ -171,6 +180,7 @@ if [[ "$INSTALL_VSCODE" == true ]]; then
 
     if ! command -v code >/dev/null 2>&1; then
         case "$FAMILY" in
+
             debian)
                 sudo install -d -m 0755 /etc/apt/keyrings
 
@@ -187,7 +197,8 @@ if [[ "$INSTALL_VSCODE" == true ]]; then
 
                 rm -f /tmp/packages.microsoft.gpg
 
-                echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" |
+                echo \
+                    "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" |
                     sudo tee /etc/apt/sources.list.d/vscode.list >/dev/null
 
                 sudo apt-get update
@@ -195,8 +206,39 @@ if [[ "$INSTALL_VSCODE" == true ]]; then
                 ;;
 
             fedora)
-                sudo rpm --import \
-                    https://packages.microsoft.com/keys/microsoft.asc
+                MICROSOFT_KEY_URL="https://packages.microsoft.com/keys/microsoft.asc"
+                MICROSOFT_KEY_TMP="$(mktemp)"
+                MICROSOFT_KEY_PATH="/etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY"
+
+                log "Downloading Microsoft signing key"
+
+                # The current VM has no usable IPv6 Internet route.
+                # Force IPv4 and retry temporary connection failures.
+                if ! curl -4 -fsSL \
+                    --retry 5 \
+                    --retry-delay 3 \
+                    --retry-all-errors \
+                    --connect-timeout 15 \
+                    --max-time 120 \
+                    "$MICROSOFT_KEY_URL" \
+                    -o "$MICROSOFT_KEY_TMP"; then
+
+                    rm -f "$MICROSOFT_KEY_TMP"
+                    die "Failed to download Microsoft signing key"
+                fi
+
+                # Keep a persistent local copy of the key so DNF does not
+                # need to fetch the key again from packages.microsoft.com.
+                sudo install \
+                    -o root \
+                    -g root \
+                    -m 644 \
+                    "$MICROSOFT_KEY_TMP" \
+                    "$MICROSOFT_KEY_PATH"
+
+                sudo rpm --import "$MICROSOFT_KEY_PATH"
+
+                rm -f "$MICROSOFT_KEY_TMP"
 
                 cat <<'EOF_CODE' | sudo tee /etc/yum.repos.d/vscode.repo >/dev/null
 [code]
@@ -206,15 +248,22 @@ enabled=1
 autorefresh=1
 type=rpm-md
 gpgcheck=1
-gpgkey=https://packages.microsoft.com/keys/microsoft.asc
+gpgkey=file:///etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
 EOF_CODE
 
-                sudo dnf install -y code
+                # Force IPv4 for this VM because IPv6 currently has no
+                # working default route.
+                sudo dnf \
+                    --setopt=ip_resolve=4 \
+                    install -y code
                 ;;
 
             arch)
                 if install_paru_arch; then
-                    paru -S --needed --noconfirm visual-studio-code-bin
+                    paru -S \
+                        --needed \
+                        --noconfirm \
+                        visual-studio-code-bin
                 fi
                 ;;
         esac
