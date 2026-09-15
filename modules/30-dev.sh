@@ -13,9 +13,13 @@ if [[ "$INSTALL_NVM_NODE" == true ]]; then
         NVM_INSTALL_URL="https://raw.githubusercontent.com/nvm-sh/nvm/${NVM_VERSION}/install.sh"
         NVM_INSTALL_TMP="$(mktemp)"
 
-        # This VM currently has working IPv4 but no usable IPv6 route.
-        # Force IPv4 and retry temporary network failures.
-        if ! curl -4 -fsSL \
+        # Network behavior:
+        #   - Retry temporary failures up to 5 times.
+        #   - Wait 3 seconds between retries.
+        #   - Retry connection/network errors too.
+        #   - Give connection establishment 15 seconds.
+        #   - Limit each transfer attempt to 120 seconds.
+        if ! curl -fsSL \
             --retry 5 \
             --retry-delay 3 \
             --retry-all-errors \
@@ -62,25 +66,15 @@ if [[ "$INSTALL_PYTHON" == true ]]; then
 
     case "$FAMILY" in
         debian)
-            install_many \
-                python3 \
-                python3-pip \
-                python3-venv \
-                pipx
+            install_many python3 python3-pip python3-venv pipx
             ;;
 
         fedora)
-            install_many \
-                python3 \
-                python3-pip \
-                pipx
+            install_many python3 python3-pip pipx
             ;;
 
         arch)
-            install_many \
-                python \
-                python-pip \
-                python-pipx
+            install_many python python-pip python-pipx
             ;;
     esac
 fi
@@ -95,7 +89,6 @@ if [[ "$INSTALL_DOCKER" == true ]]; then
 
     if ! command -v docker >/dev/null 2>&1; then
         case "$FAMILY" in
-
             debian)
                 docker_os="debian"
                 docker_suite="${VERSION_CODENAME:-}"
@@ -153,10 +146,7 @@ EOF_DOCKER
                 ;;
 
             arch)
-                install_many \
-                    docker \
-                    docker-buildx \
-                    docker-compose
+                install_many docker docker-buildx docker-compose
                 ;;
         esac
     else
@@ -180,7 +170,6 @@ if [[ "$INSTALL_VSCODE" == true ]]; then
 
     if ! command -v code >/dev/null 2>&1; then
         case "$FAMILY" in
-
             debian)
                 sudo install -d -m 0755 /etc/apt/keyrings
 
@@ -197,8 +186,7 @@ if [[ "$INSTALL_VSCODE" == true ]]; then
 
                 rm -f /tmp/packages.microsoft.gpg
 
-                echo \
-                    "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" |
+                echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" |
                     sudo tee /etc/apt/sources.list.d/vscode.list >/dev/null
 
                 sudo apt-get update
@@ -212,9 +200,7 @@ if [[ "$INSTALL_VSCODE" == true ]]; then
 
                 log "Downloading Microsoft signing key"
 
-                # The current VM has no usable IPv6 Internet route.
-                # Force IPv4 and retry temporary connection failures.
-                if ! curl -4 -fsSL \
+                if ! curl -fsSL \
                     --retry 5 \
                     --retry-delay 3 \
                     --retry-all-errors \
@@ -227,8 +213,6 @@ if [[ "$INSTALL_VSCODE" == true ]]; then
                     die "Failed to download Microsoft signing key"
                 fi
 
-                # Keep a persistent local copy of the key so DNF does not
-                # need to fetch the key again from packages.microsoft.com.
                 sudo install \
                     -o root \
                     -g root \
@@ -251,19 +235,12 @@ gpgcheck=1
 gpgkey=file:///etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
 EOF_CODE
 
-                # Force IPv4 for this VM because IPv6 currently has no
-                # working default route.
-                sudo dnf \
-                    --setopt=ip_resolve=4 \
-                    install -y code
+                sudo dnf install -y code
                 ;;
 
             arch)
                 if install_paru_arch; then
-                    paru -S \
-                        --needed \
-                        --noconfirm \
-                        visual-studio-code-bin
+                    paru -S --needed --noconfirm visual-studio-code-bin
                 fi
                 ;;
         esac
