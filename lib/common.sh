@@ -76,9 +76,15 @@ install_many() {
     done
 }
 
+system_service_exists() {
+    local state
+    state="$(systemctl show --property=LoadState --value "$1" 2>/dev/null)" || return 1
+    [[ "$state" == loaded ]]
+}
+
 enable_system_service_if_exists() {
     local unit="$1"
-    if systemctl list-unit-files "$unit" >/dev/null 2>&1; then
+    if system_service_exists "$unit"; then
         sudo systemctl enable --now "$unit" || warn "Could not enable $unit"
     else
         warn "System service not found: $unit"

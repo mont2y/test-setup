@@ -1,0 +1,4 @@
+# Required by LenovoLegionLinux when the kernel was built with Clang.
+clang
+llvm
+lld

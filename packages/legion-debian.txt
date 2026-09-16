@@ -11,3 +11,5 @@ python3-venv
 python3-pip
 python3-argcomplete
 python3-darkdetect
+python3-pil
+pipx

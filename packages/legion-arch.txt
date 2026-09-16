@@ -7,3 +7,5 @@ python-pyqt6
 python-yaml
 python-argcomplete
 python-darkdetect
+python-pillow
+python-pipx

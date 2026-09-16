@@ -1,0 +1,5 @@
+# JetBrains Mono is packaged; Symbols Nerd Font Mono uses the upstream fallback.
+jetbrains-mono-fonts
+fontconfig
+curl
+unzip

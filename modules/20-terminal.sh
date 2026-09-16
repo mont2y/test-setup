@@ -2,6 +2,53 @@
 
 [[ "$INSTALL_WEZTERM" == true ]] || return 0
 
+wezterm_font_available() {
+    local families
+    command -v fc-match >/dev/null 2>&1 || return 1
+    families="$(fc-match -f '%{family}\n' "$1")" || return 1
+    # fc-match succeeds even when it substitutes an unrelated font.
+    tr ',' '\n' <<< "$families" | grep -Fx -- "$1" >/dev/null
+}
+
+install_wezterm_font_fallback() (
+    local family="$1" directory="$2" url="$3" pattern="$4" marker="$5"
+    local target="$HOME/.local/share/fonts/$directory" temporary
+    if wezterm_font_available "$family" || [[ -s "$target/$marker" ]]; then
+        return 0
+    fi
+    temporary="$(mktemp -d)" || return 1
+    trap 'rm -rf "$temporary"' EXIT
+    log "Installing upstream font: $family"
+    curl -fL --retry 3 --connect-timeout 15 --max-time 120 "$url" -o "$temporary/font.zip" || return 1
+    unzip -q -j "$temporary/font.zip" "$pattern" -d "$temporary/fonts" || return 1
+    [[ -s "$temporary/fonts/$marker" ]] || return 1
+    mkdir -p "$target" || return 1
+    cp "$temporary/fonts/"*.ttf "$target/" || return 1
+)
+
+install_package_manifest "packages/fonts-${FAMILY}.txt"
+install_wezterm_font_fallback 'JetBrains Mono' jetbrains-mono \
+    'https://github.com/JetBrains/JetBrainsMono/releases/download/v2.304/JetBrainsMono-2.304.zip' \
+    'fonts/ttf/*.ttf' JetBrainsMono-Regular.ttf || warn 'Could not install JetBrains Mono fallback'
+install_wezterm_font_fallback 'Symbols Nerd Font Mono' symbols-nerd-font-mono \
+    'https://github.com/ryanoasis/nerd-fonts/releases/download/v3.4.0/NerdFontsSymbolsOnly.zip' \
+    'SymbolsNerdFontMono-Regular.ttf' SymbolsNerdFontMono-Regular.ttf || warn 'Could not install Symbols Nerd Font Mono fallback'
+
+if command -v fc-cache >/dev/null 2>&1; then
+    fc-cache -f || warn 'Could not refresh the font cache'
+fi
+if command -v fc-match >/dev/null 2>&1; then
+    for font in 'JetBrains Mono' 'Symbols Nerd Font Mono'; do
+        if wezterm_font_available "$font"; then
+            ok "Font available: $font"
+        else
+            warn "Required WezTerm font not found: $font"
+        fi
+    done
+else
+    warn 'fontconfig unavailable; skipping WezTerm font verification'
+fi
+
 if ! command -v wezterm >/dev/null 2>&1; then
     log "Installing WezTerm"
     case "$FAMILY" in
@@ -23,7 +70,7 @@ if ! command -v wezterm >/dev/null 2>&1; then
             sudo dnf install -y wezterm
             ;;
         arch)
-            install_many wezterm ttf-nerd-fonts-symbols-mono
+            install_pkg wezterm
             ;;
     esac
 else

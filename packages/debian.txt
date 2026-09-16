@@ -2,5 +2,4 @@
 gnupg
 vim
 openssh-client
-openssh-server
 fd-find
