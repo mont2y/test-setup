@@ -1,0 +1,6 @@
+# Base packages (fedora).
+gnupg2
+vim-enhanced
+openssh-clients
+openssh-server
+fd-find

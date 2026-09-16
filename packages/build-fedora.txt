@@ -1,0 +1,5 @@
+# Build packages (fedora).
+gcc
+gcc-c++
+make
+pkgconf-pkg-config

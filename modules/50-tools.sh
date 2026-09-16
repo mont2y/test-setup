@@ -64,7 +64,7 @@ if [[ "$INSTALL_ESPANSO" == true ]]; then
                     chmod u+x "$HOME/opt/Espanso.AppImage"
                     sudo "$HOME/opt/Espanso.AppImage" env-path register
                 else
-                    install_many git dbus base-devel wl-clipboard wxwidgets-gtk3 rust
+                    install_package_manifest "packages/espanso-build-arch.txt"
                     src="$HOME/.local/src/espanso"
                     mkdir -p "$HOME/.local/src"
                     if [[ -d "$src/.git" ]]; then

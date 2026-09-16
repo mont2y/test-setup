@@ -1,0 +1,10 @@
+# Virtualization packages (debian).
+qemu-kvm
+qemu-system-x86
+qemu-utils
+libvirt-daemon-system
+libvirt-clients
+virtinst
+dnsmasq-base
+bridge-utils
+ovmf

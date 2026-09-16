@@ -1,0 +1,4 @@
+# Development packages (arch).
+python
+python-pip
+python-pipx

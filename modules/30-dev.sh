@@ -64,19 +64,7 @@ fi
 if [[ "$INSTALL_PYTHON" == true ]]; then
     log "Installing Python development tools"
 
-    case "$FAMILY" in
-        debian)
-            install_many python3 python3-pip python3-venv pipx
-            ;;
-
-        fedora)
-            install_many python3 python3-pip pipx
-            ;;
-
-        arch)
-            install_many python python-pip python-pipx
-            ;;
-    esac
+    install_package_manifest "packages/development-${FAMILY}.txt"
 fi
 
 

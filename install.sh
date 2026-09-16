@@ -8,6 +8,8 @@ export ROOT_DIR
 source "$ROOT_DIR/settings.sh"
 # shellcheck disable=SC1091
 source "$ROOT_DIR/lib/common.sh"
+# shellcheck disable=SC1091
+source "$ROOT_DIR/lib/packages.sh"
 
 require_normal_user
 detect_distro

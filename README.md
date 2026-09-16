@@ -90,6 +90,50 @@ INSTALL_LENOVO_LEGION_LINUX=false
 INSTALL_CODEX=false
 ```
 
+## Package manifests
+
+Simple package lists live in `packages/`; parsing and installation are handled by
+`lib/packages.sh` using the package-manager helpers in `lib/common.sh`. Complex
+installers, repository setup, services, and configuration remain in `modules/`.
+Small package calls tied to individual component switches also remain there.
+
+- `common.txt` and `debian.txt`, `fedora.txt`, or `arch.txt` contain base tools.
+- `build-common.txt` and `build-<family>.txt` contain compiler/build dependencies.
+  Like the base tools, these still follow `INSTALL_BASE`.
+- `development-<family>.txt` contains Python tooling, controlled by `INSTALL_PYTHON`.
+- `virtualization-*`, `legion-*`, and `espanso-build-arch.txt` hold dependencies
+  used only by the corresponding module and its existing installation conditions.
+
+Common manifests contain names shared by all three families; family manifests
+contain the remaining packages. Ubuntu uses `debian`; CachyOS and Omarchy use
+`arch`. No profiles are added.
+
+To add a package, put its name on its own line in the appropriate manifest. Use
+the common file when the name is identical across all supported families, or put
+each distro's name in the corresponding family file. For example, `fd-find`
+appears in the Debian and Fedora base manifests, while Arch uses `fd`.
+New manifest files must also be wired into their owning module.
+
+Blank lines and full-line `#` comments are allowed. Surrounding whitespace is
+trimmed and duplicate names are installed only once per manifest, in first-seen
+order. Keep checked-in files free of duplicates and trailing whitespace; the
+tests enforce this. Entries are package names, never shell commands or inline
+comments. Missing or invalid manifests fail before any of their packages install.
+Already installed packages are skipped; unavailable packages produce warnings.
+Installation reuses the existing per-package checks and transactions.
+
+Run the lightweight checks without installing any packages:
+
+```bash
+./tests/test-syntax.sh
+./tests/test-manifests.sh
+```
+
+The manifest tests include mocked Debian, Fedora, and Arch installation paths and
+base/Python settings checks. If available, also run
+`shellcheck install.sh lib/*.sh modules/*.sh tests/*.sh`; ShellCheck is not a
+runtime dependency.
+
 ## Secrets
 
 Do not put passwords, API keys, SSH private keys, rclone credentials, browser profiles, or Syncthing private device material in this repository.

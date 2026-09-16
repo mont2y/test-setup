@@ -1,0 +1,7 @@
+# Espanso-build packages (arch).
+git
+dbus
+base-devel
+wl-clipboard
+wxwidgets-gtk3
+rust

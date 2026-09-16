@@ -1,0 +1,6 @@
+# Build packages (debian).
+build-essential
+pkg-config
+make
+gcc
+g++

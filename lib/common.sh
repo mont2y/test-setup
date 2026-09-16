@@ -72,7 +72,7 @@ install_pkg() {
 install_many() {
     local pkg
     for pkg in "$@"; do
-        install_pkg "$pkg"
+        install_pkg "$pkg" || return $?
     done
 }
 

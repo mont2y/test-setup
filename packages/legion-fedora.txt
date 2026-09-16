@@ -1,0 +1,11 @@
+# Legion packages (fedora).
+kernel-headers
+kernel-devel
+dmidecode
+lm_sensors
+python3-qt6
+python3-pyqt6
+python3-yaml
+python3-pip
+python3-argcomplete
+python3-darkdetect

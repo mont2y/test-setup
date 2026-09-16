@@ -6,17 +6,8 @@ log "Installing KVM/QEMU/libvirt/virt-manager"
 
 grep -Eq '(vmx|svm)' /proc/cpuinfo || warn "CPU virtualization flags were not detected; check BIOS/UEFI virtualization settings"
 
-case "$FAMILY" in
-    debian)
-        install_many qemu-kvm qemu-system-x86 qemu-utils libvirt-daemon-system libvirt-clients virt-manager virtinst dnsmasq-base bridge-utils ovmf
-        ;;
-    fedora)
-        install_many qemu-kvm libvirt virt-manager virt-install edk2-ovmf dnsmasq
-        ;;
-    arch)
-        install_many qemu-full libvirt virt-manager virt-install dnsmasq bridge-utils edk2-ovmf
-        ;;
-esac
+install_package_manifest "packages/virtualization-common.txt"
+install_package_manifest "packages/virtualization-${FAMILY}.txt"
 
 if systemctl list-unit-files 2>/dev/null | grep -q '^libvirtd.service'; then
     enable_system_service_if_exists libvirtd.service

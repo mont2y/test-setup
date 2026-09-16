@@ -1,0 +1,6 @@
+# Virtualization packages (fedora).
+qemu-kvm
+libvirt
+virt-install
+edk2-ovmf
+dnsmasq

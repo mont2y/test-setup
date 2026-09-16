@@ -9,17 +9,16 @@ if [[ "$vendor" != *LENOVO* && "$vendor" != *Lenovo* ]]; then
 fi
 
 log "Installing LenovoLegionLinux"
+install_package_manifest "packages/legion-common.txt"
+install_package_manifest "packages/legion-${FAMILY}.txt"
 case "$FAMILY" in
     debian)
-        install_many make gcc build-essential git lm-sensors wget python3-pyqt6 python3-yaml python3-venv python3-pip python3-argcomplete python3-darkdetect dkms openssl mokutil
         sudo apt-get install -y "linux-headers-$(uname -r)" || warn "Could not install running-kernel headers"
         ;;
     fedora)
-        install_many kernel-headers kernel-devel dmidecode lm_sensors python3-qt6 python3-pyqt6 python3-yaml python3-pip python3-argcomplete python3-darkdetect dkms openssl mokutil
         sudo dnf group install -y "Development Tools" || true
         ;;
     arch)
-        install_many base-devel lm_sensors git dmidecode python-pyqt6 python-yaml python-argcomplete python-darkdetect dkms openssl mokutil
         if [[ ! -e "/usr/lib/modules/$(uname -r)/build" ]]; then
             kernel_pkg="$(pacman -Qqo "/usr/lib/modules/$(uname -r)/vmlinuz" 2>/dev/null || true)"
             if [[ -n "$kernel_pkg" ]] && pkg_available "${kernel_pkg}-headers"; then

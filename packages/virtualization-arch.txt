@@ -1,0 +1,7 @@
+# Virtualization packages (arch).
+qemu-full
+libvirt
+virt-install
+dnsmasq
+bridge-utils
+edk2-ovmf

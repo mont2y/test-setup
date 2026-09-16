@@ -1,0 +1,18 @@
+# Base packages (common).
+curl
+wget
+git
+ca-certificates
+unzip
+zip
+tar
+neovim
+nano
+tmux
+htop
+btop
+tree
+jq
+rsync
+ripgrep
+bash-completion

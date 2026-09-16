@@ -1,0 +1,5 @@
+# Base packages (arch).
+gnupg
+vim
+openssh
+fd

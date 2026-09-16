@@ -1,0 +1,13 @@
+# Legion packages (debian).
+make
+gcc
+build-essential
+git
+lm-sensors
+wget
+python3-pyqt6
+python3-yaml
+python3-venv
+python3-pip
+python3-argcomplete
+python3-darkdetect

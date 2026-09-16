@@ -1,0 +1,4 @@
+# Legion packages (common).
+dkms
+openssl
+mokutil
