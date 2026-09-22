@@ -13,7 +13,12 @@ fi
 
 if [[ "$INSTALL_SYNCTHING" == true ]]; then
     install_pkg syncthing
-    command -v syncthing >/dev/null 2>&1 && enable_user_service_if_exists syncthing.service
+    if [[ "${RESTORE_BITWARDEN_SECRETS:-false}" == true && "${RESTORE_SYNCTHING_FROM_BITWARDEN:-false}" == true ]]; then
+        source "$ROOT_DIR/lib/syncthing-recovery.sh"
+        syncthing_recovery_prepare || warn 'Syncthing initialization failed; recovery will report its result during secret restoration'
+    elif command -v syncthing >/dev/null 2>&1; then
+        enable_user_service_if_exists syncthing.service
+    fi
 fi
 
 if [[ "$INSTALL_SOLAAR" == true ]]; then

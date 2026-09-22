@@ -46,3 +46,8 @@ fi
 if [[ "${INSTALL_BITWARDEN_DESKTOP:-false}" == true ]]; then
     printf 'SSH: open Bitwarden Desktop and enable SSH Agent; follow the README socket instructions.\n'
 fi
+if [[ "${RESTORE_BITWARDEN_SECRETS:-false}" == true && "${RESTORE_SYNCTHING_FROM_BITWARDEN:-false}" == true ]]; then
+    printf '\nSyncthing: after successful recovery, accept the local Device ID on each existing peer.\n'
+    printf 'Run the printed peer-side commands for missing devices/shares. Verify: syncthing cli show system\n'
+    printf 'If recovery failed, resolve the warning and rerun ./restore-secrets.sh.\n'
+fi

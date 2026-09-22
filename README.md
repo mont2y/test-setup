@@ -205,6 +205,7 @@ Run the lightweight checks without installing any packages:
 ./tests/test-legion.sh
 ./tests/test-bitwarden.sh
 ./tests/test-secrets.sh
+./tests/test-syncthing-recovery.sh
 ```
 
 The manifest tests include mocked Debian, Fedora, and Arch installation paths and
@@ -296,8 +297,9 @@ a credential, adding an rclone remote, or updating the note:
 Run as your normal user in a terminal. The standalone command honors the same
 settings as the installer and requires an already installed `bw` and `jq`.
 Disabling `RESTORE_BITWARDEN_SECRETS` disables both entry points. Disabling
-`RESTORE_RCLONE_FROM_BITWARDEN` skips the only current file mapping without
-prompting. Rclone restoration is independent of `INSTALL_RCLONE`, allowing
+`RESTORE_RCLONE_FROM_BITWARDEN` skips rclone restoration.
+Disable both it and `RESTORE_SYNCTHING_FROM_BITWARDEN` to skip vault access
+without prompting. Rclone restoration is independent of `INSTALL_RCLONE`, allowing
 restoration when the application is already installed separately.
 
 The CLI prompts for login/MFA or unlock as necessary. Login uses raw output to
@@ -378,8 +380,171 @@ The installer neither writes SSH private keys to disk nor deletes existing keys.
 
 GitHub CLI continues to use `gh auth login`. GitHub PAT restoration, Docker
 credential restoration/login, and Syncthing identity restoration are excluded.
-Syncthing identities should remain unique per active device. Keep those secrets
-in Bitwarden for manual use; no automatic Docker credential strategy is added.
+Syncthing topology recovery is supported as described below.
+Syncthing identities should remain unique per active device. Other credentials
+can stay in Bitwarden for manual use; no automatic Docker credential strategy is added.
+
+## Syncthing recovery
+
+Syncthing recovery rebuilds trusted peers, folder IDs, paths, types, and shares
+around the machine's **own identity**. New machines generate a new Device ID;
+existing machines keep theirs. Git stores only the schema example and vault item
+reference. Real peer IDs, names, labels, and paths belong in Bitwarden.
+
+**Never restore `key.pem`, `cert.pem`, `https-key.pem`, `https-cert.pem`,
+`config.xml`, GUI API keys, or the Syncthing database/index from another device.**
+The recovery code never reads or writes these files directly. Syncthing itself
+manages its local identity and configuration.
+
+### Prepare the recovery note
+
+On a healthy existing peer, obtain its ID and inspect the folders you want to
+share:
+
+```bash
+syncthing device-id
+syncthing cli config folders list
+syncthing cli config folders <FOLDER_ID> dump-json |
+  jq '{id,label,path,type,devices:[.devices[].deviceID]}'
+```
+
+Create a unique Bitwarden **Secure Note** named exactly
+`Linux Setup - Syncthing Recovery`. Paste JSON based on
+[`configs/syncthing/recovery.example.json`](configs/syncthing/recovery.example.json)
+into Notes. The example's Device ID is deliberately invalid; replace it **inside
+Bitwarden only** with an existing peer's actual ID. Never put the new machine's
+local ID or identity material in the note.
+
+Schema version 1 requires these fields, with no additional keys:
+
+| Object | Fields |
+| --- | --- |
+| Root | `version: 1`, `devices` array, `folders` array |
+| Device | `alias`, `deviceID`, `name`, `introducer` boolean |
+| Folder | `id`, `label`, `path`, `type`, `devices` array of aliases |
+
+Aliases use 1–32 letters, digits, underscores, or hyphens. Device IDs must be
+canonical uppercase Base32 with valid check digits, unique, and different from
+the local ID. Names and labels must be nonempty and contain no control characters.
+Folder IDs use 1–128 letters, digits, dots, underscores, or hyphens and cannot
+start with a hyphen. IDs must be unique and match the folder IDs on existing peers.
+Every folder alias must identify a manifest device, without duplicates.
+Empty arrays are allowed. Supported types are `sendreceive`, `sendonly`,
+`receiveonly`, and `receiveencrypted`. Encrypted sharing still needs appropriate
+password configuration on sending peers; this schema does not store passwords.
+
+### Settings and initialization
+
+```bash
+RESTORE_SYNCTHING_FROM_BITWARDEN=true
+SYNCTHING_RECOVERY_ALLOW_PATHS_OUTSIDE_HOME=false
+SYNCTHING_RECOVERY_ALLOW_NONEMPTY_NEW_FOLDERS=false
+SYNCTHING_RECOVERY_WAIT_SECONDS=30
+```
+
+Recovery also requires `RESTORE_BITWARDEN_SECRETS=true`. `INSTALL_SYNCTHING`
+controls installation independently; recovery can use an already installed
+Syncthing. Disable `RESTORE_SYNCTHING_FROM_BITWARDEN` if you have not prepared
+the note or want only ordinary installation/service startup.
+
+The installer initializes Syncthing before starting its systemd user service.
+For older versions advertising the flag, it uses
+`syncthing generate --no-default-folder`. Syncthing 2.x no longer creates a
+default folder and uses `syncthing generate` without that flag. An unsupported
+version without the flag fails initialization. Generation preserves an existing
+identity; a running service is reused without rewriting its on-disk configuration.
+An existing default folder is never deleted.
+
+The standalone refresh also initializes/starts the service when necessary:
+
+```bash
+./restore-secrets.sh
+```
+
+Recovery requires Bash, Syncthing, jq, GNU realpath/timeout, standard Linux
+utilities, and a working `syncthing.service` in the user systemd manager. It never
+launches a background daemon itself. Readiness uses `syncthing cli show system`
+within the configured deadline (1–3600 seconds); subsequent CLI calls have a
+15-second timeout.
+
+The CLI commands were verified against Syncthing **2.1.5**. See the official
+[command-line documentation](https://docs.syncthing.net/users/syncthing) and
+[configuration API](https://docs.syncthing.net/rest/config). Older flag behavior
+is covered by mocks; fresh-install testing on each distro remains necessary.
+
+### Safety and reruns
+
+Paths may use `{HOME}/...` or absolute paths. `{HOME}` is the only placeholder;
+no shell expansion or `eval` occurs. Paths are canonicalized, including existing
+symlinks. `/`, the home directory itself, control characters, traversal components,
+unresolved placeholders, non-directory targets, and unwritable target parents
+are refused. Outside-home
+paths require the explicit switch above. Duplicate/overlapping managed paths or
+paths overlapping another configured folder are refused.
+
+A new folder pointing at a non-empty directory is refused unless explicitly
+allowed. Existing matching folders may contain data. All manifest entries and
+existing path/type conflicts are checked before topology changes. Avoid concurrent
+recovery runs or configuration edits while applying a manifest.
+
+Updates are additive: missing peers, folders, and shares are added; existing
+names, labels, addresses, options, unmanaged folders, and extra shares remain.
+`introducer: true` enables that setting; `false` never disables it. Recovery never
+enables `autoAcceptFolders`, accepts unknown pending entries, removes shares or
+folders, moves files, or deletes `.stfolder`. Existing path/type conflicts must
+be resolved manually. Normal Syncthing synchronization follows the chosen folder
+type once peers connect, including propagating deletions as usual.
+
+The complete desired topology is verified after application. A CLI failure can
+leave earlier additive changes in place; a rerun resumes without duplicates.
+Rclone and Syncthing share one Bitwarden authentication/sync/cleanup cycle, and
+both are attempted even if one fails. `BITWARDEN_SECRETS_REQUIRED=false` warns
+and continues; `true` returns failure for either unsuccessful operation.
+
+The vault note is staged in a mode-0600 temporary file and removed on success,
+failure, and handled signals. It is not persisted as a local recovery manifest.
+Full note/configuration JSON and credentials are never logged. As with rclone,
+forced termination or power loss can prevent temporary-file cleanup.
+
+### Accept the new machine on existing peers
+
+Trust is mutual: local recovery alone does not authorize the new machine on
+another peer. After successful recovery, the summary prints the local Device ID
+and safely quoted Bash commands for each peer. Run the device-add command only
+if the new device is absent, and the folder-share commands only for missing shares.
+Each peer receives commands only for its relevant folders.
+
+The commands have these forms:
+
+```bash
+syncthing cli config devices add --device-id <NEW_ID> --name <NEW_HOSTNAME>
+syncthing cli config folders <FOLDER_ID> devices add --device-id <NEW_ID>
+```
+
+No SSH connection or remote mutation is performed. No new local ID is uploaded
+to Bitwarden. The optional status script is not included; use the CLI directly.
+
+### Troubleshooting
+
+```bash
+systemctl --user status syncthing.service
+syncthing cli show system | jq -r '.myID'
+syncthing cli config devices list
+syncthing cli config folders list
+```
+
+If readiness fails, check the user service and CLI connection before rerunning.
+For a rejected manifest, check schema types, actual peer IDs/check digits,
+unique aliases/folder IDs, and paths. For an existing path/type conflict or
+non-empty target, review the local data before changing the manifest or enabling
+an opt-in. A missing vault item must be created with the exact unique name above.
+Peer acceptance is still required when local recovery succeeds but sync has not
+started.
+
+The mocked recovery suite covers initialization order, identity preservation,
+readiness/timeouts, validation, filesystem guards, additive behavior, CLI failures,
+shared Bitwarden sessions, cleanup, and peer command generation. It uses only fake
+IDs and disposable homes and makes no network or privileged calls.
 
 ## Secrets
 

@@ -4,7 +4,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 if [[ "${SETUP_TEST_CHILD:-}" != bitwarden ]]; then
     test_home="$(mktemp -d)"
     trap 'rm -rf "$test_home"' EXIT
-    env HOME="$test_home" SETUP_TEST_CHILD=bitwarden bash "$0"
+    env HOME="$test_home" PATH=/usr/bin:/bin SETUP_TEST_CHILD=bitwarden bash "$0"
     exit
 fi
 source "$ROOT_DIR/lib/common.sh"
