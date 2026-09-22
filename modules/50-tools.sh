@@ -2,7 +2,13 @@
 
 if [[ "$INSTALL_RCLONE" == true ]]; then
     install_pkg rclone
-    [[ -f "$HOME/.config/rclone/rclone.conf" ]] || warn "rclone installed but not configured; run: rclone config"
+    if [[ ! -f "$HOME/.config/rclone/rclone.conf" ]]; then
+        if [[ "${RESTORE_BITWARDEN_SECRETS:-false}" == true && "${RESTORE_RCLONE_FROM_BITWARDEN:-false}" == true ]]; then
+            log 'rclone configuration will be checked during Bitwarden restoration'
+        else
+            warn 'rclone installed but not configured; run: rclone config'
+        fi
+    fi
 fi
 
 if [[ "$INSTALL_SYNCTHING" == true ]]; then

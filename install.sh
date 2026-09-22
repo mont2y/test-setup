@@ -34,6 +34,15 @@ Next steps:
        docker --version
        code --version
   4. Sign in where needed: Brave, Telegram, Steam, GitHub CLI, Postman.
-  5. Configure rclone manually if no config is restored: rclone config
-
 EOF2
+if [[ "${INSTALL_BITWARDEN_CLI:-false}" == true || "${RESTORE_BITWARDEN_SECRETS:-false}" == true ]]; then
+    printf '\nBitwarden: bw status\nRefresh secrets: ./restore-secrets.sh\n'
+fi
+if [[ -s "$HOME/.config/rclone/rclone.conf" ]]; then
+    printf 'rclone: verify your configuration with rclone listremotes\n'
+else
+    printf 'rclone: no configuration found; run ./restore-secrets.sh or rclone config\n'
+fi
+if [[ "${INSTALL_BITWARDEN_DESKTOP:-false}" == true ]]; then
+    printf 'SSH: open Bitwarden Desktop and enable SSH Agent; follow the README socket instructions.\n'
+fi

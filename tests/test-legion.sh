@@ -21,6 +21,8 @@ zgrep() {
 cat() {
     if [[ "$1" == /sys/class/dmi/id/sys_vendor ]]; then printf '%s\n' "$test_vendor"; else command cat "$@"; fi
 }
+# Both direct package queries and sudo are mocked separately.
+# shellcheck disable=SC2032
 pacman() { printf 'linux-test\n'; }
 sudo() {
     printf 'sudo %s\n' "$*" >> "$HOME/calls"
@@ -78,7 +80,9 @@ for scenario in non-lenovo debian fedora arch cachyos pipx-failure; do
     if [[ "$scenario" == pipx-failure ]]; then
         grep -q 'legion_gui/legion_cli installation failed' "$HOME/log" || fail 'Missing pipx failure warning'
     else
-        command -v legion_cli >/dev/null && command -v legion_gui >/dev/null || fail 'Missing commands'
+        if ! command -v legion_cli >/dev/null || ! command -v legion_gui >/dev/null; then
+            fail 'Missing commands'
+        fi
     fi
 done
 # Use fixture paths to cover kernel detection independently of the host kernel.

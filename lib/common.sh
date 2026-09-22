@@ -129,7 +129,8 @@ install_paru_arch() {
 backup_path() {
     local target="$1"
     [[ -e "$target" || -L "$target" ]] || return 0
-    local backup="${target}.backup.$(date +%Y%m%d-%H%M%S)"
+    local backup
+    backup="${target}.backup.$(date +%Y%m%d-%H%M%S)"
     mv "$target" "$backup"
     warn "Backed up $target to $backup"
 }

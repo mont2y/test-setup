@@ -6,6 +6,8 @@ tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 install_pkg() { printf 'install %s\n' "$1" >> "$tmpdir/calls"; }
+# Direct queries and sudo service operations are mocked separately.
+# shellcheck disable=SC2032
 systemctl() {
     [[ "$*" == "show --property=LoadState --value "* ]] || fail "Unexpected systemctl: $*"
     if [[ "${*: -1}" == "$unit" ]]; then printf 'loaded\n'; else printf 'not-found\n'; fi

@@ -62,6 +62,8 @@ if (install_package_manifest "$tmpdir/absent") > "$tmpdir/log" 2>&1; then
     fail 'Missing manifest accepted'
 fi
 [[ "$(cat "$tmpdir/log")" == *'missing or unreadable'* ]] || fail 'Missing error message'
+# The command substitution is deliberately literal hostile input.
+# shellcheck disable=SC2016
 for invalid in 'sudo apt install vim' 'apt-get' 'dnf install git' 'pacman -S git' '$(touch sentinel)' 'git;true' '--help' '-y' 'git # inline'; do
     printf 'git\n%s\n' "$invalid" > "$fixture"
     if (install_package_manifest "$fixture") >/dev/null 2>&1; then

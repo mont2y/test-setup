@@ -26,6 +26,8 @@ install_wezterm_font_fallback() (
     cp "$temporary/fonts/"*.ttf "$target/" || return 1
 )
 
+# FAMILY is the detected distro, distinct from the font helper's local family.
+# shellcheck disable=SC2153
 install_package_manifest "packages/fonts-${FAMILY}.txt"
 install_wezterm_font_fallback 'JetBrains Mono' jetbrains-mono \
     'https://github.com/JetBrains/JetBrainsMono/releases/download/v2.304/JetBrainsMono-2.304.zip' \

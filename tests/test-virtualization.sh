@@ -6,6 +6,8 @@ tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 install_package_manifest() { :; }
+# Direct queries and sudo service operations are mocked separately.
+# shellcheck disable=SC2032
 systemctl() { printf 'not-found\n'; }
 getent() { return 1; }
 virsh() { fail 'virsh must use sudo, C locale, and the system connection'; }

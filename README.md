@@ -46,6 +46,7 @@ There are no profiles. `./install.sh` installs the setup selected in `settings.s
 - Input Remapper
 - Espanso
 - LenovoLegionLinux on Lenovo hardware
+- Bitwarden CLI and Desktop
 
 ### Virtualization
 - KVM
@@ -202,17 +203,183 @@ Run the lightweight checks without installing any packages:
 ./tests/test-services.sh
 ./tests/test-virtualization.sh
 ./tests/test-legion.sh
+./tests/test-bitwarden.sh
+./tests/test-secrets.sh
 ```
 
 The manifest tests include mocked Debian, Fedora, and Arch installation paths and
 base/Python settings checks. If available, also run
-`shellcheck install.sh lib/*.sh modules/*.sh tests/*.sh`; ShellCheck is not a
+`shellcheck -x -P SCRIPTDIR install.sh restore-secrets.sh lib/*.sh modules/*.sh scripts/* tests/*.sh tests/helpers/*.sh`; ShellCheck is not a
 runtime dependency.
 
 The reliability tests mock package managers, downloads, service operations, and
 hardware commands. They cover font fallback/reruns, SSH switches, libvirt state
 transitions and failures, Lenovo hardware/Clang detection, and pipx/DKMS results.
 They do not replace a fresh-install smoke test on each distro and supported hardware.
+
+The Bitwarden tests use a fake CLI, fake sentinel secrets, and disposable homes.
+They cover authentication and cleanup, exact lookup, native checksum rejection,
+file permissions/atomic replacement, overwrite conflicts, tracing refusal,
+secret leakage, and command exit codes. They need Bash, jq, unzip, and standard
+Linux utilities; no real vault, downloads, or package installation are used.
+
+## Bitwarden secret management
+
+Bitwarden Password Manager is the backend for personal secrets. Git contains
+only code and references in `configs/bitwarden/items.sh`; secret values stay in
+the vault until needed by a local file or process. This uses Secure Notes and
+custom fields, so encrypted attachments and a paid attachment feature are not
+required. It does not use Bitwarden Secrets Manager or chezmoi.
+
+The default settings are:
+
+```bash
+INSTALL_BITWARDEN_CLI=true
+INSTALL_BITWARDEN_DESKTOP=true
+RESTORE_BITWARDEN_SECRETS=true
+BITWARDEN_SECRETS_REQUIRED=false
+BITWARDEN_OVERWRITE_EXISTING_SECRETS=false
+RESTORE_RCLONE_FROM_BITWARDEN=true
+BITWARDEN_CLI_INSTALL_METHOD="auto"
+BITWARDEN_CLI_VERSION="2026.9.0"
+```
+
+`55-bitwarden.sh` installs software without authenticating. `auto` reuses a
+working `bw`, otherwise uses `npm install -g @bitwarden/cli` when npm is available
+(loading an existing NVM installation when needed). It never uses `sudo npm`.
+With a system npm whose global prefix is not writable, use NVM or choose
+`BITWARDEN_CLI_INSTALL_METHOD="native"`. An npm installation failure is reported
+without silently switching installation methods.
+
+The native fallback supports x86_64 and ARM64. It downloads the pinned release's
+metadata from the official `bitwarden/clients` GitHub repository, requires a
+SHA-256 asset digest, checks the archive before extracting/executing anything,
+and installs `~/.local/bin/bw` with mode `0755`. Missing digests, mismatches, and
+unsupported architectures fail this path. Existing installations are reused;
+changing `BITWARDEN_CLI_VERSION` does not upgrade an existing CLI. The version
+setting applies only to native installation.
+
+Native ARM64 builds and GitHub asset digests were verified for
+[CLI 2026.9.0](https://github.com/bitwarden/clients/releases/tag/cli-v2026.9.0).
+These supersede the plan's older ARM64/npm-only assumption and separate checksum
+file description. See the official [CLI instructions](https://bitwarden.com/help/cli/)
+and [checksum verification guidance](https://bitwarden.com/help/security-faqs/#q-how-do-i-validate-the-checksum-of-a-bitwarden-app).
+
+Desktop uses the existing Flatpak helper for `com.bitwarden.desktop`. Missing
+Flatpak or a failed Desktop installation produces a warning; restoration uses
+the standalone CLI and does not depend on Desktop. Keep `INSTALL_FLATPAK=true`
+unless Flatpak and the user Flathub remote are already configured.
+
+### Prepare the vault once
+
+1. Optionally create a folder named `Linux Setup` for organization. This folder
+   is not an access-control boundary or lookup filter.
+2. Create a **Secure Note** named exactly `Linux Setup - rclone.conf`.
+3. Paste the complete current `~/.config/rclone/rclone.conf` into its Notes field.
+   Do this in Bitwarden, never in the repository or an issue.
+4. Keep item names unique across the accessible vault. Duplicate exact names
+   are rejected, even if they are in different folders.
+
+For an EU or self-hosted account, configure the CLI server using Bitwarden's
+official CLI instructions before the first restore. Desktop and CLI
+authentication are independent.
+
+### Restore and refresh
+
+`80-secrets.sh` restores after the application modules. To refresh after rotating
+a credential, adding an rclone remote, or updating the note:
+
+```bash
+./restore-secrets.sh
+```
+
+Run as your normal user in a terminal. The standalone command honors the same
+settings as the installer and requires an already installed `bw` and `jq`.
+Disabling `RESTORE_BITWARDEN_SECRETS` disables both entry points. Disabling
+`RESTORE_RCLONE_FROM_BITWARDEN` skips the only current file mapping without
+prompting. Rclone restoration is independent of `INSTALL_RCLONE`, allowing
+restoration when the application is already installed separately.
+
+The CLI prompts for login/MFA or unlock as necessary. Login uses raw output to
+capture its new session; an already logged-in locked vault uses `bw unlock
+--raw`. A valid inherited session is reused. The scripts do not read your master
+password, use API-key login, or save `BW_SESSION`. Synchronization occurs before
+lookup. Sessions stay in a subshell and are cleaned on exit, including failures
+and handled signals. The scripts re-lock sessions they opened, and leave an
+initially unlocked vault unlocked. Avoid concurrent CLI use while a restore owns
+a session. Bitwarden itself maintains its normal encrypted local vault cache.
+
+Secret entry points refuse `bash -x`. Do not enable tracing around manually
+exported sessions either. Login/unlock needs terminal stdin and stderr; a valid
+inherited session can be used without prompts. Never save sessions in shell
+startup files or session files.
+
+The rclone file is restored atomically with mode `0600`, preserving exact note
+bytes, including trailing newlines. Identical content is left in place and its
+mode is corrected if necessary. Differing content is preserved with a warning
+unless `BITWARDEN_OVERWRITE_EXISTING_SECRETS=true`; replacement creates no
+plaintext backup. Symlink paths, hard-linked/non-regular destinations, and a
+destination directory writable by other users are refused. Temporary plaintext
+files have restrictive permissions and are removed on normal exits and handled
+signals; forcibly killed processes or power loss cannot run cleanup traps.
+
+With `BITWARDEN_SECRETS_REQUIRED=false`, failures warn and allow setup to
+continue; the standalone command also returns success after that warning.
+Set it to `true` when automation must receive a failing exit status, including
+when an existing differing file was preserved. No success message claims a
+conflicting file was restored.
+
+Verify without displaying credentials:
+
+```bash
+bw --version
+bw status
+rclone listremotes
+# Optional read-only check, if your remote is named b2:
+rclone lsd b2:
+```
+
+### One process receives one API key
+
+Create a unique item such as `Linux Setup - OpenAI`, with a custom hidden field
+named `api_key`. Store the actual key only in that field. Invoke:
+
+```bash
+scripts/with-bitwarden-secret \
+  "Linux Setup - OpenAI" api_key OPENAI_API_KEY -- command-that-needs-openai
+```
+
+The wrapper authenticates, synchronizes, and requires exactly one matching item
+and field. Empty/missing/duplicate fields and NUL values fail. It sets the chosen
+variable only in the launched command's environment and returns that command's
+exit status. It strips Bitwarden session and authentication variables before
+launching the child. It never writes API keys into `.zshrc`, `.profile`, `.env`,
+or external command arguments. Use application-specific variable names;
+shell/loader controls and Bitwarden/internal names are reserved. Only run trusted
+commands: the receiving process and its descendants can read or print their
+environment. The wrapper's own failures always return nonzero, independently
+of the installer's optional-restoration policy.
+
+### SSH keys and intentional exclusions
+
+Open and unlock Bitwarden Desktop, enable **SSH Agent** in its settings, and
+import/create your key as an **SSH Key** item. Register the public key with
+GitHub or the server. For the Flatpak installation, configure the socket:
+
+```bash
+export SSH_AUTH_SOCK="$HOME/.var/app/com.bitwarden.desktop/data/.bitwarden-ssh-agent.sock"
+ssh -T git@github.com
+```
+
+Add that non-secret socket setting to your shell configuration if desired.
+Follow the current [Bitwarden SSH Agent instructions](https://bitwarden.com/help/ssh-agent/)
+for other installation formats. GUI agent authorization remains a manual step.
+The installer neither writes SSH private keys to disk nor deletes existing keys.
+
+GitHub CLI continues to use `gh auth login`. GitHub PAT restoration, Docker
+credential restoration/login, and Syncthing identity restoration are excluded.
+Syncthing identities should remain unique per active device. Keep those secrets
+in Bitwarden for manual use; no automatic Docker credential strategy is added.
 
 ## Secrets
 

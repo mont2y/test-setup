@@ -43,7 +43,8 @@ if [[ "$INSTALL_NVM_NODE" == true ]]; then
     fi
 
     if [[ -s "$NVM_DIR/nvm.sh" ]]; then
-        # shellcheck disable=SC1090
+        # NVM is installed outside this repository.
+        # shellcheck disable=SC1090,SC1091
         source "$NVM_DIR/nvm.sh"
 
         log "Installing Node.js LTS"
